@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes vs. Me</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #262b36;
+    --text: #e8eaf0; --muted: #8b93a5; --accent: #7c6cff;
+    --accent-soft: rgba(124,108,255,.14); --good: #3ecf8e; --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 20px 80px; }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; }
+  h1 { font-size: 22px; letter-spacing: -.02em; }
+  h1 em { color: var(--accent); font-style: normal; }
+  .tagline { color: var(--muted); font-size: 13px; }
+  .banner {
+    display: none; margin-bottom: 16px; padding: 10px 14px; border-radius: 10px;
+    background: #2a1f1f; border: 1px solid #55333; color: #ffb3b3; font-size: 14px;
+  }
+  .banner.show { display: block; }
+  nav { display: flex; gap: 6px; margin-bottom: 22px; background: var(--panel);
+        padding: 5px; border-radius: 12px; border: 1px solid var(--border); }
+  nav button {
+    flex: 1; padding: 9px 0; border: 0; border-radius: 9px; cursor: pointer;
+    background: transparent; color: var(--muted); font: inherit; font-weight: 600;
+  }
+  nav button.active { background: var(--accent-soft); color: var(--text); }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 16px; margin-bottom: 12px; }
+  .muted { color: var(--muted); font-size: 13.5px; }
+  button.primary {
+    background: var(--accent); color: #fff; border: 0; border-radius: 10px;
+    padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button.primary:disabled { opacity: .45; cursor: wait; }
+  button.ghost {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 10px; padding: 8px 14px; font: inherit; cursor: pointer;
+  }
+  .drop {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 28px;
+    text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s;
+  }
+  .drop.over, .drop:hover { border-color: var(--accent); color: var(--text); }
+  .doc-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 2px; border-bottom: 1px solid var(--border); font-size: 14px;
+  }
+  .doc-row:last-child { border-bottom: 0; }
+  .doc-row .del { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 15px; }
+  .doc-row .del:hover { color: var(--bad); }
+  /* quiz */
+  .qmeta { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; }
+  .chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px;
+          background: var(--accent-soft); color: var(--accent); }
+  .qtext { font-size: 17px; line-height: 1.5; margin-bottom: 16px; }
+  .opt {
+    display: block; width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 8px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); font: inherit; cursor: pointer;
+  }
+  .opt:hover { border-color: var(--accent); }
+  .opt.picked { border-color: var(--accent); background: var(--accent-soft); }
+  .opt.right { border-color: var(--good); }
+  .opt.wrong { border-color: var(--bad); }
+  textarea {
+    width: 100%; min-height: 110px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px;
+    font: inherit; resize: vertical;
+  }
+  .feedback { border-radius: 10px; padding: 12px 14px; font-size: 14px; margin-top: 12px; }
+  .feedback.good { background: rgba(62,207,142,.12); border: 1px solid rgba(62,207,142,.4); }
+  .feedback.bad  { background: rgba(255,107,107,.1); border: 1px solid rgba(255,107,107,.4); }
+  /* heatmap */
+  .bar-row { display: grid; grid-template-columns: 160px 1fr 52px; gap: 12px;
+             align-items: center; padding: 7px 0; font-size: 14px; }
+  .bar-track { background: var(--bg); border-radius: 6px; height: 10px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 6px; }
+  .bignum { display: flex; gap: 12px; margin-bottom: 18px; }
+  .stat { flex: 1; background: var(--panel); border: 1px solid var(--border);
+          border-radius: 12px; padding: 14px; text-align: center; }
+  .stat .n { font-size: 24px; font-weight: 700; }
+  .stat .l { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid var(--muted);
+             border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite;
+             vertical-align: -2px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { color: var(--muted); text-align: center; padding: 30px 0; font-size: 14px; }
+  .actions { display: flex; gap: 10px; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Notes <em>vs.</em> Me</h1>
+    <span class="tagline">your notes, your laptop, zero cloud</span>
+  </header>
+  <div class="banner" id="banner"></div>
+
+  <nav>
+    <button data-view="library" class="active">Library</button>
+    <button data-view="quiz">Get grilled</button>
+    <button data-view="progress">Progress</button>
+  </nav>
+
+  <!-- LIBRARY -->
+  <section id="view-library">
+    <div class="card">
+      <h2>Add notes</h2>
+      <div class="drop" id="drop">Drop a PDF here, or click to pick one<br>
+        <span class="muted">syllabus, slides, past papers — text-based PDFs</span>
+      </div>
+      <input type="file" id="file" accept=".pdf" hidden>
+      <div id="upload-status" class="muted" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>Your notes</h2>
+      <div id="docs"><div class="empty">Nothing uploaded yet.</div></div>
+    </div>
+  </section>
+
+  <!-- QUIZ -->
+  <section id="view-quiz" hidden>
+    <div class="card" id="quiz-card">
+      <div id="quiz-start">
+        <h2>Ready to get grilled?</h2>
+        <p class="muted">Five questions, pulled from your notes — weighted toward
+        whatever you keep getting wrong. Generated by an open model running on
+        this laptop.</p>
+        <div class="actions"><button class="primary" id="start-btn">Start the grill</button></div>
+      </div>
+      <div id="quiz-live" hidden>
+        <div class="qmeta">
+          <span class="chip" id="q-topic"></span>
+          <span class="muted" id="q-count"></span>
+        </div>
+        <div class="qtext" id="q-text"></div>
+        <div id="q-answers"></div>
+        <div id="q-feedback"></div>
+        <div class="actions">
+          <button class="primary" id="next-btn" hidden>Next question</button>
+        </div>
+      </div>
+      <div id="quiz-done" hidden>
+        <h2>Grill complete 🔥</h2>
+        <p class="muted" id="done-summary"></p>
+        <div class="actions">
+          <button class="primary" id="again-btn">Another round</button>
+          <button class="ghost" id="stats-btn">See weak topics</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROGRESS -->
+  <section id="view-progress" hidden>
+    <div class="bignum" id="overall"></div>
+    <div class="card">
+      <h2>Weak-topic heatmap</h2>
+      <p class="muted" style="margin-bottom:12px">Red bars are topics the griller
+      will hunt you down with next.</p>
+      <div id="heatmap"><div class="empty">Answer some questions first.</div></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let questions = [], qi = -1, picked = null;
+
+/* ---- nav ---- */
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
+  ["library", "quiz", "progress"].forEach(v => $("view-" + v).hidden = v !== b.dataset.view);
+  if (b.dataset.view === "library") loadDocs();
+  if (b.dataset.view === "progress") loadStats();
+});
+
+function banner(msg) {
+  const el = $("banner");
+  if (!msg) { el.classList.remove("show"); return; }
+  el.textContent = msg; el.classList.add("show");
+}
+
+/* ---- health ---- */
+async function healthCheck() {
+  try {
+    const s = await (await fetch("/api/health")).json();
+    if (!s.ok) banner("Local model not ready — missing: " + s.missing.join(", ") +
+      ". Run: ollama pull " + s.missing[0]);
+    else banner(null);
+  } catch {
+    banner("Can't reach the backend — is `uvicorn app.main:app` running?");
+  }
+}
+
+/* ---- library ---- */
+const drop = $("drop"), fileInput = $("file");
+drop.onclick = () => fileInput.click();
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over");
+  if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]); };
+fileInput.onchange = () => fileInput.files[0] && uploadFile(fileInput.files[0]);
+
+async function uploadFile(file) {
+  $("upload-status").innerHTML = '<span class="spinner"></span>Reading ' + file.name + " …";
+  const fd = new FormData(); fd.append("file", file);
+  const r = await fetch("/api/upload", { method: "POST", body: fd });
+  const j = await r.json();
+  $("upload-status").textContent = r.ok
+    ? j.chunks + " chunks ready. The griller is hungry."
+    : "Error: " + (j.detail || "upload failed");
+  loadDocs();
+}
+
+async function loadDocs() {
+  const docs = await (await fetch("/api/documents")).json();
+  $("docs").innerHTML = docs.length ? docs.map(d =>
+    `<div class="doc-row"><span>${d.name} <span class="muted">· ${d.chunk_count} chunks</span></span>
+     <button class="del" onclick="delDoc(${d.id})" title="delete">✕</button></div>`).join("")
+    : '<div class="empty">Nothing uploaded yet.</div>';
+}
+async function delDoc(id) {
+  await fetch("/api/documents/" + id, { method: "DELETE" }); loadDocs();
+}
+
+/* ---- quiz ---- */
+$("start-btn").onclick = startQuiz;
+$("again-btn").onclick = startQuiz;
+$("next-btn").onclick = nextQuestion;
+$("stats-btn").onclick = () => document.querySelector('nav button[data-view="progress"]').click();
+
+async function startQuiz() {
+  $("quiz-start").hidden = true; $("quiz-done").hidden = true;
+  $("quiz-live").hidden = false;
+  $("q-text").innerHTML = '<span class="spinner"></span>The griller is reading your notes…';
+  $("q-answers").innerHTML = ""; $("q-feedback").innerHTML = "";
+  const r = await fetch("/api/quiz/next?count=5", { method: "POST" });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    $("q-text").textContent = j.detail || "Could not generate questions.";
+    return;
+  }
+  questions = await r.json(); qi = -1; nextQuestion();
+}
+
+function nextQuestion() {
+  qi++; picked = null;
+  $("q-feedback").innerHTML = ""; $("next-btn").hidden = true;
+  if (qi >= questions.length) return finishQuiz();
+  const q = questions[qi];
+  $("q-topic").textContent = q.topic;
+  $("q-count").textContent = `question ${qi + 1} of ${questions.length}`;
+  $("q-text").textContent = q.question;
+  if (q.type === "mcq") {
+    $("q-answers").innerHTML = q.options.map(o =>
+      `<button class="opt" data-o="${o.replace(/"/g, "&quot;")}">${o}</button>`).join("");
+    $("q-answers").querySelectorAll(".opt").forEach(b => b.onclick = () => {
+      picked = b.dataset.o;
+      $("q-answers").querySelectorAll(".opt").forEach(x => x.classList.toggle("picked", x === b));
+      submit(picked);
+    });
+  } else {
+    $("q-answers").innerHTML =
+      `<textarea id="short" placeholder="Answer in your own words…"></textarea>
+       <div class="actions"><button class="primary" id="submit-short">Hand it in</button></div>`;
+    $("submit-short").onclick = () => {
+      const a = $("short").value.trim();
+      if (a) submit(a);
+    };
+  }
+}
+
+async function submit(answer) {
+  const q = questions[qi];
+  $("q-answers").querySelectorAll("button, textarea").forEach(x => x.disabled = true);
+  $("q-feedback").innerHTML = '<span class="spinner"></span>Grading…';
+  const r = await fetch(`/api/answer/${q.id}`,
+    { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answer }) });
+  const res = await r.json();
+  const cls = res.correct ? "good" : "bad";
+  $("q-feedback").innerHTML = `<div class="feedback ${cls}">${res.correct ? "✅ " : "❌ "}${res.feedback}</div>`;
+  if (q.type === "mcq") {
+    $("q-answers").querySelectorAll(".opt").forEach(b => {
+      if (b.dataset.o === q.answer) b.classList.add("right");
+      else if (b.dataset.o === answer) b.classList.add("wrong");
+    });
+  }
+  $("next-btn").hidden = false;
+  $("next-btn").textContent = qi + 1 >= questions.length ? "Finish" : "Next question";
+}
+
+function finishQuiz() {
+  $("quiz-live").hidden = true; $("quiz-done").hidden = false;
+  const rights = questions.length; // feedback shown per-question already
+  $("done-summary").textContent =
+    "That round is done. Your weak topics just got heavier in the queue — that's the point.";
+}
+
+/* ---- progress ---- */
+async function loadStats() {
+  const s = await (await fetch("/api/stats")).json();
+  const o = s.overall;
+  $("overall").innerHTML = o.attempts ? `
+    <div class="stat"><div class="n">${o.attempts}</div><div class="l">answers</div></div>
+    <div class="stat"><div class="n">${o.accuracy}%</div><div class="l">accuracy</div></div>
+    <div class="stat"><div class="n">${o.questions}</div><div class="l">questions made</div></div>`
+    : "";
+  const rows = s.topics.filter(t => t.attempts);
+  $("heatmap").innerHTML = rows.length ? rows.map(t => {
+    const pct = t.accuracy, hue = pct >= 70 ? 145 : pct >= 40 ? 35 : 5;
+    return `<div class="bar-row">
+      <span>${t.topic}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:hsl(${hue} 65% 50%)"></div></div>
+      <span class="muted">${pct}%</span></div>`;
+  }).join("") : '<div class="empty">Answer some questions first.</div>';
+}
+
+healthCheck();
+loadDocs();
+</script>
+</body>
+</html>
