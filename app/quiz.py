@@ -94,7 +94,8 @@ def generate_question(chunk: dict) -> dict:
             topic = _as_text(data["topic"])
             question = _as_text(data["question"])
             answer = _as_text(data["answer"])
-            explanation = _as_text(data["explanation"])
+            explanation = _as_text(data.get("explanation")) \
+                or "No explanation this time — compare your answer with the correct one above."
             raw_options = data.get("options")
             # the model may answer a different type than we asked for —
             # trust what it actually returned, coercing mcq -> short if the
@@ -109,8 +110,7 @@ def generate_question(chunk: dict) -> dict:
                     qtype, options = "short", None
             else:
                 options = None
-            if not all([topic, question, answer, explanation]):
-                raise ValueError("empty field")
+            if not all([topic, question, answer, explanation]):                raise ValueError("empty field")
             qid = store.save_question(chunk["id"], topic, qtype, question,
                                       options, answer, explanation)
             return {"id": qid, "topic": topic, "type": qtype,
