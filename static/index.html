@@ -196,8 +196,7 @@ function banner(msg) {
 async function healthCheck() {
   try {
     const s = await (await fetch("/api/health")).json();
-    if (!s.ok) banner("Local model not ready — missing: " + s.missing.join(", ") +
-      ". Run: ollama pull " + s.missing[0]);
+    if (!s.ok) banner(s.reason);
     else banner(null);
   } catch {
     banner("Can't reach the backend — is `uvicorn app.main:app` running?");

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes vs. Me — your notes have questions for you</title>
+<meta name="description" content="Turn your PDFs into an examiner that grills you and shows which topics you keep failing. Runs entirely on your laptop — open weights, no cloud.">
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #262b36;
+    --text: #e8eaf0; --muted: #8b93a5;
+    --accent: #7c6cff; --accent-2: #6cd0ff;
+    --accent-soft: rgba(124,108,255,.14);
+    --good: #3ecf8e; --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    font: 16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px; }
+
+  /* ambient background: faint grid + two soft glows, very low-key */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+    background:
+      radial-gradient(600px 300px at 20% -5%, rgba(124,108,255,.10), transparent 70%),
+      radial-gradient(500px 260px at 85% 0%, rgba(108,208,255,.07), transparent 70%);
+  }
+
+  /* --- nav --- */
+  nav.top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 0;
+  }
+  .logo { font-weight: 700; font-size: 17px; letter-spacing: -.02em; }
+  .logo em { color: var(--accent); font-style: normal; }
+
+  /* --- shadcn-style badge --- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 14px; border-radius: 999px;
+    border: 1px solid var(--border); background: rgba(23,26,33,.7);
+    color: var(--muted); font-size: 13px;
+  }
+  .badge .dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--good);
+    box-shadow: 0 0 8px rgba(62,207,142,.8);
+  }
+
+  /* --- hero --- */
+  .hero { text-align: center; padding: 64px 0 48px; animation: rise .6s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  h1 {
+    font-size: clamp(38px, 7vw, 62px); line-height: 1.08; letter-spacing: -.035em;
+    font-weight: 750; margin: 22px auto 18px; max-width: 15ch;
+  }
+  h1 .grad {
+    background: linear-gradient(100deg, var(--accent) 10%, var(--accent-2) 90%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .sub { color: var(--muted); font-size: 18px; max-width: 52ch; margin: 0 auto 30px; }
+  .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border-radius: 10px; font: inherit; font-weight: 600;
+    cursor: pointer; text-decoration: none; border: 1px solid transparent;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+  .btn.primary {
+    background: var(--accent); color: #fff;
+    box-shadow: 0 0 0 1px rgba(124,108,255,.4), 0 8px 28px rgba(124,108,255,.28);
+  }
+  .btn.primary:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(124,108,255,.55), 0 10px 34px rgba(124,108,255,.4); }
+  .btn.ghost { background: rgba(23,26,33,.7); border-color: var(--border); color: var(--text); }
+  .btn.ghost:hover { border-color: var(--accent); }
+
+  /* --- demo card: the one bold element --- */
+  .demo { max-width: 620px; margin: 46px auto 0; }
+  .demo-label { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .card {
+    background: rgba(23,26,33,.8); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px; text-align: left;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+  .chip {
+    display: inline-block; font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 99px;
+    background: var(--accent-soft); color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .qtext { font-size: 16.5px; line-height: 1.5; margin-bottom: 14px; }
+  .opt {
+    display: block; width: 100%; text-align: left; padding: 11px 14px; margin-bottom: 8px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); font: inherit; font-size: 15px; cursor: pointer;
+    transition: border-color .12s, background .12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); }
+  .opt:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+  .opt.right { border-color: var(--good); background: rgba(62,207,142,.10); }
+  .opt.wrong { border-color: var(--bad); background: rgba(255,107,107,.08); }
+  .opt:disabled { cursor: default; }
+  .verdict { margin-top: 12px; font-size: 14px; min-height: 22px; }
+  .verdict.good { color: var(--good); }
+  .verdict.bad { color: var(--bad); }
+  .demo-note { color: var(--muted); font-size: 12.5px; margin-top: 12px; }
+
+  /* --- sections --- */
+  section.block { padding: 56px 0; }
+  h2 { font-size: 26px; letter-spacing: -.02em; margin-bottom: 8px; }
+  .lede { color: var(--muted); max-width: 58ch; margin-bottom: 30px; }
+
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 720px) { .grid3 { grid-template-columns: 1fr; } }
+  .feature {
+    background: rgba(23,26,33,.7); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px;
+  }
+  .feature h3 { font-size: 15.5px; margin-bottom: 6px; }
+  .feature p { color: var(--muted); font-size: 14px; }
+
+  .steps { display: grid; gap: 0; max-width: 620px; }
+  .step {
+    display: grid; grid-template-columns: 30px 1fr; gap: 14px;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+  }
+  .step:last-child { border-bottom: 0; }
+  .step .n {
+    width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 13px;
+  }
+  .step h3 { font-size: 15.5px; }
+  .step p { color: var(--muted); font-size: 14px; }
+
+  .privacy {
+    border: 1px solid var(--border); border-radius: 16px; padding: 26px;
+    background:
+      radial-gradient(400px 180px at 15% 0%, rgba(124,108,255,.08), transparent 70%),
+      rgba(23,26,33,.7);
+  }
+  .privacy p { color: var(--muted); font-size: 15px; max-width: 60ch; }
+  .privacy strong { color: var(--text); }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 26px 0 40px;
+    color: var(--muted); font-size: 13.5px; text-align: center;
+  }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="top">
+    <span class="logo">Notes <em>vs.</em> Me</span>
+    <a class="btn ghost" href="/app">Open the app</a>
+  </nav>
+
+  <header class="hero">
+    <span class="badge"><span class="dot"></span>Open weights · runs on your laptop · no cloud</span>
+    <h1>Your notes have <span class="grad">questions for you.</span></h1>
+    <p class="sub">Drop in your PDFs — syllabus, slides, past papers — and Notes&nbsp;vs.&nbsp;Me becomes
+    the examiner: question after question, graded on the spot, with a heatmap of every
+    topic you keep failing. All of it runs on your own laptop.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="/app">Start grilling</a>
+      <a class="btn ghost" href="#how">See how it works</a>
+    </div>
+
+    <div class="demo">
+      <div class="demo-label">Try one right now — nothing to install</div>
+      <div class="card" id="demo-card">
+        <span class="chip">Light-dependent reactions</span>
+        <div class="qtext">What role does photolysis of water play in the
+        light-dependent reactions of photosynthesis?</div>
+        <div id="demo-opts">
+          <button class="opt" data-ok="0">It fixes CO₂ into three-carbon sugars</button>
+          <button class="opt" data-ok="1">It replaces electrons lost from photosystem II and releases O₂</button>
+          <button class="opt" data-ok="0">It transports protons into the stroma to build NADPH</button>
+          <button class="opt" data-ok="0">It synthesises glucose directly from light energy</button>
+        </div>
+        <div class="verdict" id="demo-verdict" aria-live="polite"></div>
+        <div class="demo-note">This is a sample question. In the app, questions like this are
+        generated from <em>your</em> notes by an open model on your machine — and the ones you
+        miss come back around sooner.</div>
+      </div>
+    </div>
+  </header>
+
+  <section class="block" id="features">
+    <h2>Reading feels productive. Being asked isn't.</h2>
+    <p class="lede">Re-reading notes three times builds familiarity, not recall.
+    Notes vs. Me replaces the third pass with the thing exams actually do.</p>
+    <div class="grid3">
+      <div class="feature">
+        <h3>Hunts your weak topics</h3>
+        <p>Questions are weighted by your history: untouched material first, then
+        whatever you keep getting wrong. Miss “Calvin cycle” twice and it quietly
+        schedules itself for next round.</p>
+      </div>
+      <div class="feature">
+        <h3>Graded like an examiner</h3>
+        <p>Multiple choice is scored exactly. Written answers are judged by the model
+        against a model answer — strict on understanding, generous on wording — with
+        feedback that explains itself.</p>
+      </div>
+      <div class="feature">
+        <h3>Your notes stay yours</h3>
+        <p>Parsing, question writing and grading all happen on your machine by default.
+        No account, no upload, no telemetry. It even works offline, because exam week
+        doesn't always come with Wi-Fi.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="how">
+    <h2>How a PDF becomes an examiner</h2>
+    <p class="lede">A deliberately small pipeline — small is what survives exam week.
+    One SQLite file holds all state; there is no vector database and no account.</p>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><div>
+        <h3>Ingest</h3><p>Each PDF is parsed into paragraph-aware chunks of about 1200 characters.</p>
+      </div></div>
+      <div class="step"><span class="n">2</span><div>
+        <h3>Sample</h3><p>Chunks are picked with weights from your attempt history — never-tested
+        first, weakest next.</p>
+      </div></div>
+      <div class="step"><span class="n">3</span><div>
+        <h3>Generate</h3><p>Gemma 3 (open weights, via Ollama) writes each question as strict JSON:
+        topic, question, options, answer, explanation.</p>
+      </div></div>
+      <div class="step"><span class="n">4</span><div>
+        <h3>Grade</h3><p>MCQs score deterministically; written answers are graded by the model,
+        with feedback you can revise from.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="privacy">
+      <h2>Open where it counts</h2>
+      <p><strong>Local by default.</strong> Gemma 3 runs through Ollama on your machine —
+      about 1&nbsp;GB of RAM, sized for the laptops students actually own. If a machine
+      can't run a model, the app falls back to the same open weights served by Groq, and
+      tells you plainly which mode you're in. The code is MIT-licensed; the models are
+      open-weight; your notes never leave your disk unless you choose the fallback.</p>
+      <p style="margin-top:14px"><a class="btn primary" href="/app">Open the app</a></p>
+    </div>
+  </section>
+
+  <footer>
+    Notes vs. Me — MIT licensed, built for the
+    <a href="https://dev.to/devteam/join-the-hacktoberfest-weekend-challenge-build-for-a-friend-2450-in-prizes-across-17-winners-1aj5">DEV Hacktoberfest Weekend Challenge</a>.
+    Runs FastAPI + SQLite + vanilla JS on open weights.
+  </footer>
+</div>
+
+<script>
+/* Demo question: graded locally, deterministic, no model needed. */
+const opts = document.querySelectorAll("#demo-opts .opt");
+const verdict = document.getElementById("demo-verdict");
+let answered = false;
+opts.forEach(b => b.onclick = () => {
+  if (answered) return;
+  answered = true;
+  opts.forEach(x => {
+    x.disabled = true;
+    if (x.dataset.ok === "1") x.classList.add("right");
+  });
+  if (b.dataset.ok === "1") {
+    verdict.textContent = "✅ Correct — photolysis splits water, replacing the electrons photosystem II loses and releasing O₂.";
+    verdict.classList.add("good");
+  } else {
+    b.classList.add("wrong");
+    verdict.textContent = "❌ Not quite — photolysis splits water to resupply photosystem II with electrons and release O₂. In the app, this topic would climb the queue.";
+    verdict.classList.add("bad");
+  }
+});
+</script>
+</body>
+</html>
