@@ -84,13 +84,25 @@
   .btn.ghost:hover { border-color: var(--accent); }
 
   /* --- demo card: the one bold element --- */
-  .demo { max-width: 620px; margin: 46px auto 0; }
+  .demo { max-width: 620px; margin: 46px auto 0; perspective: 1100px; }
   .demo-label { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
   .card {
+    position: relative; overflow: hidden;
     background: rgba(23,26,33,.8); border: 1px solid var(--border);
     border-radius: 16px; padding: 22px; text-align: left;
     box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    transform-style: preserve-3d;
+    transition: transform .25s cubic-bezier(.2,.8,.3,1), box-shadow .25s;
+    will-change: transform;
   }
+  .card.tilted { transition: transform .08s linear; }
+  .card::before { /* glow layer that parallaxes with the tilt */
+    content: ""; position: absolute; inset: -1px; border-radius: 16px; pointer-events: none;
+    background: linear-gradient(130deg, rgba(124,108,255,.22), transparent 45%, rgba(108,208,255,.16));
+    transform: translateZ(-30px);
+  }
+  .chip { transform: translateZ(28px); }
+  .qtext { transform: translateZ(18px); }
   .chip {
     display: inline-block; font-size: 12px; font-weight: 600;
     padding: 3px 10px; border-radius: 99px;
@@ -273,6 +285,15 @@ opts.forEach(b => b.onclick = () => {
   if (answered) return;
   answered = true;
   opts.forEach(x => {
+<script>
+/* Demo question: graded locally, deterministic, no model needed. */
+const opts = document.querySelectorAll("#demo-opts .opt");
+const verdict = document.getElementById("demo-verdict");
+let answered = false;
+opts.forEach(b => b.onclick = () => {
+  if (answered) return;
+  answered = true;
+  opts.forEach(x => {
     x.disabled = true;
     if (x.dataset.ok === "1") x.classList.add("right");
   });
@@ -285,6 +306,69 @@ opts.forEach(b => b.onclick = () => {
     verdict.classList.add("bad");
   }
 });
+
+/* --- 3D tilt on the demo card (pure CSS 3D, no dependencies) --- */
+const card = document.querySelector(".demo .card");
+const demo = document.querySelector(".demo");
+const fine = matchMedia("(pointer: fine)").matches;
+const noMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (card && fine && !noMotion) {
+  demo.addEventListener("mousemove", (e) => {
+    const r = demo.getBoundingClientRect();
+    const dx = (e.clientX - r.left) / r.width - .5;
+    const dy = (e.clientY - r.top) / r.height - .5;
+    card.classList.add("tilted");
+    card.style.transform =
+      `rotateX(${(-dy * 6).toFixed(2)}deg) rotateY(${(dx * 8).toFixed(2)}deg)`;
+  });
+  demo.addEventListener("mouseleave", () => {
+    card.classList.remove("tilted");
+    card.style.transform = "";
+  });
+}
+
+/* --- ambient three.js starfield (optional; silently skips when offline) --- */
+(function () {
+  if (noMotion) return;
+  const s = document.createElement("script");
+  s.src = "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js";
+  s.onerror = () => s.remove();          // offline: the gradient backdrop stays
+  s.onload = () => {
+    const c = document.createElement("canvas");
+    c.style.cssText = "position:fixed;inset:0;width:100%;height:100%;z-index:-2;pointer-events:none";
+    document.body.appendChild(c);
+    const renderer = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const scene = new THREE.Scene();
+    const cam = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, .1, 50);
+    cam.position.z = 8;
+    const geo = new THREE.BufferGeometry();
+    const N = 700, pos = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      pos[i * 3] = (Math.random() - .5) * 30;
+      pos[i * 3 + 1] = (Math.random() - .5) * 18;
+      pos[i * 3 + 2] = (Math.random() - .5) * 20;
+    }
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({
+      color: 0x8b93a5, size: .035, transparent: true, opacity: .55,
+      depthWrite: false }));
+    scene.add(pts);
+    const clock = new THREE.Clock();
+    (function tick() {
+      requestAnimationFrame(tick);
+      const t = clock.getElapsedTime();
+      pts.rotation.y = t * .02;
+      pts.rotation.x = Math.sin(t * .07) * .05;
+      renderer.render(scene, cam);
+    })();
+    addEventListener("resize", () => {
+      cam.aspect = innerWidth / innerHeight;
+      cam.updateProjectionMatrix();
+    });
+  };
+  document.head.appendChild(s);
+})();
 </script>
 </body>
 </html>
