@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes vs. Me — your notes have questions for you</title>
+<meta name="description" content="Turn your PDFs into an examiner that grills you and shows which topics you keep failing. Runs entirely on your laptop — open weights, no cloud.">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  ::selection { background: #10b98133; }
+
+  /* 21st.dev "Spotlight Card" pattern (port of jahed's spotlight-card):
+     mouse-following radial highlight clipped to the card border region. */
+  .spotlight { position: relative; overflow: hidden; }
+  .spotlight::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    opacity: 0; transition: opacity .4s;
+    background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), rgb(16 185 131 / 0.10), transparent 65%);
+  }
+  .spotlight:hover::before { opacity: 1; }
+  .spotlight::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    opacity: 0; transition: opacity .4s;
+    background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgb(16 185 131 / 0.35), transparent 60%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    padding: 1px;
+  }
+  .spotlight:hover::after { opacity: 1; }
+
+  /* 21st.dev "Background Paths" pattern (port of kokonutd's background-paths):
+     dashed SVG paths drawing themselves slowly behind the hero. */
+  .bg-path { stroke-dasharray: 6 10; animation: dash 38s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -640; } }
+  @media (prefers-reduced-motion: reduce) {
+    .bg-path { animation: none; }
+    html { scroll-behavior: auto; }
+  }
+
+  .fadein { animation: fadein .5s ease both; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+  .opt { transition: border-color .12s, background .12s; }
+  .opt:not(:disabled):hover { border-color: #52525b; }
+  .opt.right { border-color: #10b981; background: rgb(16 185 131 / .08); }
+  .opt.wrong { border-color: #ef4444; background: rgb(239 68 68 / .07); }
+</style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 antialiased">
+
+<!-- ============ NAV ============ -->
+<header class="border-b border-zinc-800/60">
+  <nav class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+    <a href="#" class="text-sm font-semibold tracking-tight">Notes&nbsp;vs.&nbsp;Me</a>
+    <div class="flex items-center gap-6 text-sm text-zinc-400">
+      <a href="#demo" class="hover:text-zinc-100">Demo</a>
+      <a href="#how" class="hover:text-zinc-100">How it works</a>
+      <a href="https://github.com/Priyanshujha1320/notes-vs-me" class="hover:text-zinc-100">GitHub</a>
+    </div>
+  </nav>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="relative overflow-hidden">
+  <!-- background paths, ported from 21st.dev -->
+  <svg class="pointer-events-none absolute inset-0 -z-10 h-full w-full" viewBox="0 0 1440 640" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <path class="bg-path" d="M-120 480C120 420 300 560 560 470 820 380 1000 520 1240 430 1360 385 1480 420 1560 380" stroke="#27272a" stroke-width="1.5"/>
+    <path class="bg-path" d="M-120 340C160 300 380 420 640 330 900 240 1080 380 1320 290 1440 245 1520 280 1560 240" stroke="#27272a" stroke-width="1.5"/>
+    <path class="bg-path" d="M-120 200C180 170 400 280 660 200 920 120 1120 250 1360 160 1460 125 1520 150 1560 110" stroke="#1f3d33" stroke-width="1.5"/>
+    <path class="bg-path" d="M-120 80C200 60 420 150 680 80 940 10 1140 130 1380 50 1470 22 1520 40 1560 10" stroke="#27272a" stroke-width="1.5"/>
+  </svg>
+
+  <div class="mx-auto max-w-5xl px-6 pt-24 pb-16 text-center">
+    <p class="text-sm text-zinc-500">Open weights · runs on your laptop · no cloud</p>
+    <h1 class="mx-auto mt-4 max-w-2xl text-5xl font-semibold tracking-tighter text-zinc-100 sm:text-6xl">
+      Your notes have questions for you.
+    </h1>
+    <p class="mx-auto mt-6 max-w-xl text-lg leading-8 text-zinc-400">
+      Drop in your PDFs — syllabus, slides, past papers. Notes vs. Me becomes the
+      examiner: question after question, graded on the spot, with a heatmap of every
+      topic you keep failing.
+    </p>
+    <div class="mt-9 flex items-center justify-center gap-3">
+      <a href="#demo" class="rounded-lg bg-zinc-100 px-5 py-2.5 text-sm font-medium text-zinc-950 hover:bg-white">Try the demo</a>
+      <a href="https://github.com/Priyanshujha1320/notes-vs-me" class="rounded-lg border border-zinc-800 px-5 py-2.5 text-sm font-medium text-zinc-300 hover:border-zinc-600">Get the code</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LIVE DEMO — the actual exam loop ============ -->
+<section id="demo" class="mx-auto max-w-5xl px-6 py-16">
+  <div class="mx-auto max-w-2xl text-center">
+    <h2 class="text-3xl font-semibold tracking-tight">Try the actual loop</h2>
+    <p class="mt-3 text-zinc-400">Six questions from a sample photosynthesis chapter. Graded instantly,
+    tracked by topic — exactly how the real app works. Nothing to install.</p>
+  </div>
+
+  <div class="spotlight mx-auto mt-10 max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900/60 p-7" id="quiz-card">
+    <!-- screens are rendered by JS below -->
+    <div id="quiz"></div>
+  </div>
+</section>
+
+<!-- ============ FEATURES — spotlight cards ============ -->
+<section class="mx-auto max-w-5xl px-6 py-16">
+  <h2 class="text-3xl font-semibold tracking-tight">Reading feels productive. Being asked isn't.</h2>
+  <p class="mt-3 max-w-xl text-zinc-400">Re-reading notes three times builds familiarity, not recall.
+  Notes vs. Me replaces the third pass with the thing exams actually do.</p>
+
+  <div class="mt-10 grid gap-4 md:grid-cols-2">
+    <div class="spotlight rounded-2xl border border-zinc-800 bg-zinc-900/60 p-7 md:col-span-2">
+      <h3 class="font-medium">Hunts your weak topics</h3>
+      <p class="mt-2 text-sm leading-6 text-zinc-400">Questions are weighted by your history: untouched
+      material first, then whatever you keep getting wrong. Miss "Calvin cycle" twice and it
+      quietly schedules itself for next round — the loop you just played above, running on your own notes.</p>
+    </div>
+    <div class="spotlight rounded-2xl border border-zinc-800 bg-zinc-900/60 p-7">
+      <h3 class="font-medium">Graded like an examiner</h3>
+      <p class="mt-2 text-sm leading-6 text-zinc-400">Multiple choice is scored exactly. Written answers
+      are judged by the model against a model answer — strict on understanding, generous on wording —
+      with feedback that explains itself.</p>
+    </div>
+    <div class="spotlight rounded-2xl border border-zinc-800 bg-zinc-900/60 p-7">
+      <h3 class="font-medium">Your notes stay yours</h3>
+      <p class="mt-2 text-sm leading-6 text-zinc-400">Parsing, question writing and grading all happen on
+      your machine by default. No account, no upload, no telemetry. It works offline, because exam
+      week doesn't always come with Wi-Fi.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW ============ -->
+<section id="how" class="mx-auto max-w-5xl px-6 py-16">
+  <h2 class="text-3xl font-semibold tracking-tight">How a PDF becomes an examiner</h2>
+  <p class="mt-3 max-w-xl text-zinc-400">A deliberately small pipeline — small is what survives exam week.
+  One SQLite file holds all state; no vector database, no account.</p>
+  <ol class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+    <li class="border-t border-zinc-800 pt-5">
+      <span class="text-xs font-medium text-emerald-400">01</span>
+      <h3 class="mt-2 text-sm font-medium">Ingest</h3>
+      <p class="mt-1.5 text-sm leading-6 text-zinc-400">Each PDF is parsed into paragraph-aware chunks of about 1200 characters.</p>
+    </li>
+    <li class="border-t border-zinc-800 pt-5">
+      <span class="text-xs font-medium text-emerald-400">02</span>
+      <h3 class="mt-2 text-sm font-medium">Sample</h3>
+      <p class="mt-1.5 text-sm leading-6 text-zinc-400">Chunks are picked with weights from your attempt history — never-tested first, weakest next.</p>
+    </li>
+    <li class="border-t border-zinc-800 pt-5">
+      <span class="text-xs font-medium text-emerald-400">03</span>
+      <h3 class="mt-2 text-sm font-medium">Generate</h3>
+      <p class="mt-1.5 text-sm leading-6 text-zinc-400">Gemma 3 (open weights, via Ollama) writes each question as strict JSON: topic, question, options, answer, explanation.</p>
+    </li>
+    <li class="border-t border-zinc-800 pt-5">
+      <span class="text-xs font-medium text-emerald-400">04</span>
+      <h3 class="mt-2 text-sm font-medium">Grade</h3>
+      <p class="mt-1.5 text-sm leading-6 text-zinc-400">MCQs score deterministically; written answers are graded by the model, with feedback you can revise from.</p>
+    </li>
+  </ol>
+</section>
+
+<!-- ============ OPEN / PRIVACY ============ -->
+<section class="mx-auto max-w-5xl px-6 py-16">
+  <div class="spotlight rounded-2xl border border-zinc-800 bg-zinc-900/60 p-8">
+    <h2 class="text-2xl font-semibold tracking-tight">Open where it counts</h2>
+    <p class="mt-3 max-w-2xl text-sm leading-7 text-zinc-400">
+      <span class="font-medium text-zinc-200">Local by default.</span> Gemma 3 runs through Ollama on your
+      machine — about 1&nbsp;GB of RAM, sized for the laptops students actually own. If a machine can't run
+      a model, the app falls back to the same open weights served by Groq, and tells you plainly which mode
+      you're in. The code is MIT-licensed; the models are open-weight; your notes never leave your disk
+      unless you choose the fallback.
+    </p>
+  </div>
+</section>
+
+<footer class="border-t border-zinc-800/60">
+  <div class="mx-auto max-w-5xl px-6 py-10 text-center text-sm text-zinc-500">
+    Notes vs. Me — MIT licensed, built for the
+    <a class="underline decoration-zinc-700 underline-offset-4 hover:text-zinc-300" href="https://dev.to/devteam/join-the-hacktoberfest-weekend-challenge-build-for-a-friend-2450-in-prizes-across-17-winners-1aj5">DEV Hacktoberfest Weekend Challenge</a>.
+    FastAPI + SQLite + vanilla JS on open weights.
+  </div>
+</footer>
+
+<script>
+/* ================================================================
+   Live demo: the real exam loop, client-side.
+   Six questions "generated" from a sample photosynthesis chapter,
+   graded instantly, tracked per topic, ending in the weak-topic
+   heatmap the app draws from SQLite.
+   ================================================================ */
+const QUESTIONS = [
+  { topic: "Light-dependent reactions",
+    q: "What role does photolysis of water play in the light-dependent reactions?",
+    opts: ["It fixes CO₂ into three-carbon sugars",
+           "It replaces electrons lost from photosystem II and releases O₂",
+           "It transports protons into the stroma to build NADPH",
+           "It synthesises glucose directly from light energy"],
+    ans: 1,
+    why: "Photolysis splits water, resupplying photosystem II with electrons and releasing O₂ as a by-product." },
+  { topic: "Calvin cycle",
+    q: "Which enzyme catalyses the fixation of CO₂ in the Calvin cycle?",
+    opts: ["ATP synthase", "RuBisCO", "NADP⁺ reductase", "Amylase"],
+    ans: 1,
+    why: "RuBisCO attaches CO₂ to RuBP — the step that actually fixes carbon." },
+  { topic: "Limiting factors",
+    q: "A plant is given saturating light and plenty of CO₂, but photosynthesis plateaus. Most likely limiting factor?",
+    opts: ["Chlorophyll density", "Water availability", "Temperature affecting enzyme kinetics", "Stomata cannot open further"],
+    ans: 2,
+    why: "With light and CO₂ saturated, enzyme kinetics (temperature) becomes the usual bottleneck." },
+  { topic: "Chlorophyll",
+    q: "Why do leaves appear green?",
+    opts: ["Chlorophyll absorbs green light strongly",
+           "Chlorophyll reflects green light while absorbing red and blue",
+           "Green light drives the Calvin cycle directly",
+           "Carotenoids reflect green and absorb everything else"],
+    ans: 1,
+    why: "Chlorophyll absorbs mainly red and blue; green is reflected, so that's what you see." },
+  { topic: "Calvin cycle",
+    q: "How many turns of the Calvin cycle are needed to produce one molecule of G3P that leaves the cycle?",
+    opts: ["One", "Two", "Three", "Six"],
+    ans: 2,
+    why: "Three turns fix three CO₂, producing six G3P — five recycle, one leaves." },
+  { topic: "Light-dependent reactions",
+    q: "Where does the electron that photosystem I passes to NADP⁺ ultimately come from?",
+    opts: ["Photosystem II's chlorophyll a", "Water split by photolysis", "The Calvin cycle", "Cytochrome complexes synthesize it"],
+    ans: 1,
+    why: "The electron chain starts at photolysis: water's electrons flow PSII → PSI → NADP⁺." },
+];
+
+const el = document.getElementById("quiz");
+const card = document.getElementById("quiz-card");
+let i = 0, results = [];
+
+function renderIntro() {
+  el.innerHTML = `
+    <p class="text-xs font-medium text-emerald-400">Sample chapter · Photosynthesis</p>
+    <h3 class="mt-2 text-lg font-medium">Six questions. Graded like the real app.</h3>
+    <p class="mt-2 text-sm leading-6 text-zinc-400">Every answer is tracked by topic. At the end you'll see
+    the weak-topic heatmap the app draws from your attempt history.</p>
+    <button id="start" class="mt-5 rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-white">Start the grill</button>`;
+  el.querySelector("#start").onclick = () => { i = 0; results = []; renderQ(); };
+}
+
+function renderQ() {
+  const q = QUESTIONS[i];
+  el.innerHTML = `
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-medium text-emerald-400">${q.topic}</span>
+      <span class="text-xs text-zinc-500">${i + 1} / ${QUESTIONS.length}</span>
+    </div>
+    <h3 class="mt-3 text-base leading-6 font-medium">${q.q}</h3>
+    <div class="mt-4 grid gap-2" id="opts">
+      ${q.opts.map((o, k) => `<button class="opt rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-left text-sm text-zinc-200" data-k="${k}">${o}</button>`).join("")}
+    </div>
+    <div class="mt-4 hidden text-sm leading-6" id="fb"></div>
+    <button id="next" class="mt-4 hidden rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 hover:border-zinc-500">${i === QUESTIONS.length - 1 ? "See my heatmap" : "Next question"}</button>`;
+  const opts = [...el.querySelectorAll(".opt")], fb = el.querySelector("#fb"), next = el.querySelector("#next");
+  let done = false;
+  opts.forEach(b => b.onclick = () => {
+    if (done) return; done = true;
+    const k = +b.dataset.k, ok = k === q.ans;
+    results.push({ topic: q.topic, ok });
+    opts.forEach(x => { x.disabled = true; if (+x.dataset.k === q.ans) x.classList.add("right"); });
+    if (!ok) b.classList.add("wrong");
+    fb.classList.remove("hidden");
+    fb.innerHTML = (ok ? `<span class="text-emerald-400">Correct.</span> ` : `<span class="text-red-400">Not quite.</span> `)
+      + `${q.why} <span class="text-zinc-500">${ok ? "This topic drops in priority." : "In the app, this topic climbs the queue."}</span>`;
+    next.classList.remove("hidden");
+  });
+  next.onclick = () => (i < QUESTIONS.length - 1) ? renderQ() : renderHeatmap();
+}
+
+function renderHeatmap() {
+  const byTopic = {};
+  for (const r of results) (byTopic[r.topic] = byTopic[r.topic] || []).push(r.ok);
+  const rows = Object.entries(byTopic)
+    .map(([t, rs]) => ({ t, acc: rs.filter(Boolean).length / rs.length, n: rs.length }))
+    .sort((a, b) => a.acc - b.acc);
+  const worst = rows[0];
+  el.innerHTML = `
+    <p class="text-xs font-medium text-emerald-400">Session heatmap</p>
+    <h3 class="mt-2 text-lg font-medium">${results.filter(r => r.ok).length} / ${results.length} correct</h3>
+    <div class="mt-5 grid gap-3">
+      ${rows.map(r => `
+        <div>
+          <div class="flex justify-between text-xs"><span class="text-zinc-300">${r.t}</span><span class="text-zinc-500">${Math.round(r.acc * 100)}%</span></div>
+          <div class="mt-1.5 h-1.5 rounded-full bg-zinc-800"><div class="h-1.5 rounded-full" style="width:${Math.max(r.acc * 100, 6)}%;background:${r.acc >= .6 ? "#10b981" : r.acc >= .3 ? "#eab308" : "#ef4444"}"></div></div>
+        </div>`).join("")}
+    </div>
+    <p class="mt-5 text-sm leading-6 text-zinc-400">Your weakest topic — <span class="text-zinc-200">${worst.t}</span> —
+    would be scheduled first next round. That's the whole trick: the examiner remembers.</p>
+    <div class="mt-5 flex gap-3">
+      <button id="again" class="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 hover:border-zinc-500">Run it again</button>
+      <a href="https://github.com/Priyanshujha1320/notes-vs-me" class="rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-white">Use it on your own notes</a>
+    </div>`;
+  el.querySelector("#again").onclick = renderIntro;
+}
+
+/* spotlight cards — port of the 21st.dev spotlight-card mouse-follow */
+document.querySelectorAll(".spotlight").forEach(c => {
+  c.addEventListener("mousemove", e => {
+    const r = c.getBoundingClientRect();
+    c.style.setProperty("--mx", (e.clientX - r.left) + "px");
+    c.style.setProperty("--my", (e.clientY - r.top) + "px");
+  });
+});
+
+renderIntro();
+</script>
+</body>
+</html>
