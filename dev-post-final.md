@@ -22,15 +22,13 @@ loop on their machine, and it all works offline.
 
 ## Demo
 
-- **Live landing page**: [priyanshujha1320.github.io/notes-vs-me](https://priyanshujha1320.github.io/notes-vs-me/)
-- **Full app** (needs Ollama + a laptop): clone, `ollama pull gemma3:1b`, `pip install -r requirements.txt`, run — ten minutes
-- **The hero**: a seeded 3D flow field where some particles periodically loop back along their own trails — spaced repetition, made visible
+- **Play it live, no install**: [priyanshujha1320.github.io/notes-vs-me](https://priyanshujha1320.github.io/notes-vs-me/) — the landing page runs the actual exam loop in your browser: six questions from a sample photosynthesis chapter, graded instantly with explanations, ending in the session heatmap (your weakest topic sorted first, exactly what the real app schedules next round)
+- **Full app on your own notes**: clone the repo, `ollama pull gemma3:1b`, `pip install -r requirements.txt`, run — ten minutes, and everything after that works offline
 
 ## The code
 
 [github.com/Priyanshujha1320/notes-vs-me](https://github.com/Priyanshujha1320/notes-vs-me) — MIT licensed. FastAPI + SQLite + a single-file
-vanilla-JS frontend — no build step, nothing to trust. Six commits, one
-weekend.
+vanilla-JS frontend — no build step, nothing to trust. One weekend.
 
 ## How I built it
 
