@@ -26,6 +26,11 @@ GROQ_CHAT_MODEL = os.environ.get("NVM_GROQ_MODEL", "llama-3.1-8b-instant")
 
 TIMEOUT = 120
 
+# A session that ignores proxy env vars: calls to the local Ollama must never
+# be routed through a proxy (http_proxy/HTTPS_PROXY would break them).
+_local = requests.Session()
+_local.trust_env = False
+
 
 class ModelDown(Exception):
     pass
@@ -41,7 +46,7 @@ def provider() -> str:
     if explicit in ("ollama", "groq"):
         return explicit
     try:
-        requests.get(f"{OLLAMA_HOST}/api/tags", timeout=2).raise_for_status()
+        _local.get(f"{OLLAMA_HOST}/api/tags", timeout=2).raise_for_status()
         return "ollama"
     except requests.RequestException:
         return "groq" if _groq_key() else "none"
@@ -58,9 +63,11 @@ def chat(prompt: str, system: str = "", json_mode: bool = False) -> str:
         "No model available: Ollama isn't running and no NVM_GROQ_API_KEY is set")
 
 
-def _post_json(url: str, payload: dict, headers: dict | None = None) -> dict:
+def _post_json(url: str, payload: dict, headers: dict | None = None,
+               session: requests.Session | None = None) -> dict:
+    http = session or requests
     try:
-        resp = requests.post(url, json=payload, headers=headers, timeout=TIMEOUT)
+        resp = http.post(url, json=payload, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
     except requests.RequestException as e:
         raise ModelDown(f"model request failed: {e}")
@@ -76,7 +83,7 @@ def _chat_ollama(prompt: str, system: str, json_mode: bool) -> str:
                      "options": {"num_ctx": 2048}}
     if json_mode:
         payload["format"] = "json"
-    return _post_json(f"{OLLAMA_HOST}/api/chat", payload)["message"]["content"]
+    return _post_json(f"{OLLAMA_HOST}/api/chat", payload, session=_local)["message"]["content"]
 
 
 def _chat_groq(prompt: str, system: str, json_mode: bool) -> str:
@@ -112,7 +119,7 @@ def status() -> dict:
                 "reason": "No model: start Ollama, or set NVM_GROQ_API_KEY"}
     if which == "ollama":
         try:
-            tags = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5).json()
+            tags = _local.get(f"{OLLAMA_HOST}/api/tags", timeout=5).json()
         except requests.RequestException:
             return {"ok": False, "provider": "ollama",
                     "reason": "Ollama stopped responding"}
